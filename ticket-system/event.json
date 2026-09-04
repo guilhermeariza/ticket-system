@@ -1,0 +1,20 @@
+{
+  "name": "Rock in Rio",
+  "description": "The biggest music festival in the world",
+  "date": "2025-12-25T20:00:00",
+  "location": "Rio de Janeiro",
+  "ticketTypes": [
+    {
+      "name": "General Admission",
+      "price": 500.00,
+      "totalQuantity": 10000,
+      "availableQuantity": 10000
+    },
+    {
+      "name": "VIP",
+      "price": 1500.00,
+      "totalQuantity": 2000,
+      "availableQuantity": 2000
+    }
+  ]
+}

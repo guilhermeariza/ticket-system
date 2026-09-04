@@ -1,0 +1,357 @@
+version: '3.8'
+
+services:
+  # Infrastructure
+  discovery-service:
+    build: ./discovery-service
+    ports:
+      - "8761:8761"
+    networks:
+      - spring-cloud-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8761/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+
+  config-server:
+    build: ./config-server
+    ports:
+      - "8888:8888"
+    volumes:
+      - ./config-repo:/config-repo
+    networks:
+      - spring-cloud-network
+    depends_on:
+      - discovery-service
+    environment:
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://discovery-service:8761/eureka/
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8888/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+
+  api-gateway:
+    build: ./api-gateway
+    ports:
+      - "8080:8080"
+    networks:
+      - spring-cloud-network
+    depends_on:
+      - discovery-service
+      - config-server
+    environment:
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://discovery-service:8761/eureka/
+      - SPRING_PROFILES_ACTIVE=default
+      - JWT_SECRET=${JWT_SECRET:-404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:3000}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+
+  rabbitmq:
+    image: "rabbitmq:3.8-management"
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    networks:
+      - spring-cloud-network
+    environment:
+      - RABBITMQ_DEFAULT_USER=${RABBITMQ_USER:-guest}
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASS:-guest}
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+
+  # Backend Services
+  auth-service:
+    build: ./auth-service
+    ports:
+      - "8081:8081"
+    networks:
+      - spring-cloud-network
+    depends_on:
+      - discovery-service
+      - config-server
+      - auth-db
+    environment:
+      - SPRING_PROFILES_ACTIVE=default
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://discovery-service:8761/eureka/
+      - DB_USERNAME=${DB_USERNAME:-user}
+      - DB_PASSWORD=${DB_PASSWORD:-password}
+      - JWT_SECRET=${JWT_SECRET:-404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
+      - DDL_AUTO=${DDL_AUTO:-update}
+      - SHOW_SQL=${SHOW_SQL:-false}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+
+  users-service:
+    build: ./users-service
+    ports:
+      - "8082:8082"
+    networks:
+      - spring-cloud-network
+    depends_on:
+      config-server:
+        condition: service_started
+      discovery-service:
+        condition: service_started
+      users-db:
+        condition: service_healthy
+    restart: on-failure
+    environment:
+      - SPRING_PROFILES_ACTIVE=default
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://discovery-service:8761/eureka/
+      - DB_USERNAME=${DB_USERNAME:-user}
+      - DB_PASSWORD=${DB_PASSWORD:-password}
+      - DDL_AUTO=${DDL_AUTO:-update}
+      - SHOW_SQL=${SHOW_SQL:-false}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8082/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+
+  servico-eventos:
+    build: ./servico-eventos
+    ports:
+      - "8083:8083"
+    networks:
+      - spring-cloud-network
+    depends_on:
+      - discovery-service
+      - config-server
+      - eventos-db
+    environment:
+      - SPRING_PROFILES_ACTIVE=default
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://discovery-service:8761/eureka/
+      - DB_USERNAME=${DB_USERNAME:-user}
+      - DB_PASSWORD=${DB_PASSWORD:-password}
+      - DDL_AUTO=${DDL_AUTO:-update}
+      - SHOW_SQL=${SHOW_SQL:-false}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8083/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+
+  servico-pedidos:
+    build: ./servico-pedidos
+    ports:
+      - "8084:8084"
+    networks:
+      - spring-cloud-network
+    depends_on:
+      - discovery-service
+      - config-server
+      - pedidos-db
+      - rabbitmq
+    environment:
+      - SPRING_PROFILES_ACTIVE=default
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://discovery-service:8761/eureka/
+      - DB_USERNAME=${DB_USERNAME:-user}
+      - DB_PASSWORD=${DB_PASSWORD:-password}
+      - DDL_AUTO=${DDL_AUTO:-update}
+      - SHOW_SQL=${SHOW_SQL:-false}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8084/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+
+  payments-service:
+    build: ./payments-service
+    ports:
+      - "8085:8085"
+    networks:
+      - spring-cloud-network
+    depends_on:
+      config-server:
+        condition: service_started
+      discovery-service:
+        condition: service_started
+      payments-db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: on-failure
+    environment:
+      - SPRING_PROFILES_ACTIVE=default
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://discovery-service:8761/eureka/
+      - DB_USERNAME=${DB_USERNAME:-user}
+      - DB_PASSWORD=${DB_PASSWORD:-password}
+      - DDL_AUTO=${DDL_AUTO:-update}
+      - SHOW_SQL=${SHOW_SQL:-false}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8085/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+
+  notifications-service:
+    build: ./notifications-service
+    ports:
+      - "8086:8086"
+    networks:
+      - spring-cloud-network
+    depends_on:
+      config-server:
+        condition: service_started
+      discovery-service:
+        condition: service_started
+      rabbitmq:
+        condition: service_healthy
+    restart: on-failure
+    environment:
+      - SPRING_PROFILES_ACTIVE=default
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://discovery-service:8761/eureka/
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8086/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+
+  # Databases
+  auth-db:
+    image: postgres:13
+    environment:
+      - POSTGRES_DB=auth_db
+      - POSTGRES_USER=${DB_USERNAME:-user}
+      - POSTGRES_PASSWORD=${DB_PASSWORD:-password}
+    networks:
+      - spring-cloud-network
+    volumes:
+      - auth-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-user} -d auth_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  users-db:
+    image: postgres:13
+    environment:
+      - POSTGRES_DB=users_db
+      - POSTGRES_USER=${DB_USERNAME:-user}
+      - POSTGRES_PASSWORD=${DB_PASSWORD:-password}
+    networks:
+      - spring-cloud-network
+    volumes:
+      - users-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-user} -d users_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  eventos-db:
+    image: postgres:13
+    environment:
+      - POSTGRES_DB=eventos_db
+      - POSTGRES_USER=${DB_USERNAME:-user}
+      - POSTGRES_PASSWORD=${DB_PASSWORD:-password}
+    networks:
+      - spring-cloud-network
+    volumes:
+      - eventos-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-user} -d eventos_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  pedidos-db:
+    image: postgres:13
+    environment:
+      - POSTGRES_DB=pedidos_db
+      - POSTGRES_USER=${DB_USERNAME:-user}
+      - POSTGRES_PASSWORD=${DB_PASSWORD:-password}
+    networks:
+      - spring-cloud-network
+    volumes:
+      - pedidos-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-user} -d pedidos_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  payments-db:
+    image: postgres:13
+    environment:
+      - POSTGRES_DB=payments_db
+      - POSTGRES_USER=${DB_USERNAME:-user}
+      - POSTGRES_PASSWORD=${DB_PASSWORD:-password}
+    networks:
+      - spring-cloud-network
+    volumes:
+      - payments-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-user} -d payments_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Frontend
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:3000"
+    networks:
+      - spring-cloud-network
+    depends_on:
+      - api-gateway
+    environment:
+      - REACT_APP_API_URL=${REACT_APP_API_URL:-http://localhost:8080}
+
+  # Monitoring
+  prometheus:
+    image: prom/prometheus
+    ports:
+      - "9090:9090"
+    networks:
+      - spring-cloud-network
+    volumes:
+      - ./monitoring/prometheus:/etc/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+
+  grafana:
+    image: grafana/grafana
+    ports:
+      - "3001:3000"
+    networks:
+      - spring-cloud-network
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-password}
+
+networks:
+  spring-cloud-network:
+    driver: bridge
+
+volumes:
+  auth-db-data:
+  users-db-data:
+  eventos-db-data:
+  pedidos-db-data:
+  payments-db-data:

@@ -1,0 +1,5 @@
+spring:
+  application:
+    name: servico-eventos
+  config:
+    import: "configserver:http://config-server:8888"

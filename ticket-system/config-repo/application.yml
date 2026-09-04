@@ -1,0 +1,11 @@
+server:
+  port: 8080 # Default port, will be overridden by each service
+
+eureka:
+  client:
+    serviceUrl:
+      defaultZone: http://discovery-service:8761/eureka/
+
+spring:
+  rabbitmq:
+    host: rabbitmq

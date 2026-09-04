@@ -1,0 +1,27 @@
+spring:
+  application:
+    name: notifications-service
+  cloud:
+    config:
+      enabled: false
+    discovery:
+      enabled: false
+  mail:
+    host: localhost
+    port: 1025
+    username: test@example.com
+    password: test123
+  rabbitmq:
+    host: localhost
+    port: 5672
+
+eureka:
+  client:
+    enabled: false
+
+management:
+  health:
+    mail:
+      enabled: false
+    rabbit:
+      enabled: false

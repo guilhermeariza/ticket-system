@@ -1,0 +1,78 @@
+package com.example.servicoeventos.service;
+
+import com.example.servicoeventos.model.Event;
+import com.example.servicoeventos.model.TicketType;
+import com.example.servicoeventos.repository.EventRepository;
+import com.example.servicoeventos.repository.TicketTypeRepository;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.math.BigDecimal;
+import java.util.List;
+import java.util.Optional;
+
+@Service
+public class EventService {
+
+    @Autowired
+    private EventRepository eventRepository;
+
+    @Autowired
+    private TicketTypeRepository ticketTypeRepository;
+
+    public Page<Event> getAllEvents(Pageable pageable) {
+        return eventRepository.findAll(pageable);
+    }
+
+    public Optional<Event> getEventById(Long id) {
+        return eventRepository.findById(id);
+    }
+
+    public Event createEvent(Event event) {
+        return eventRepository.save(event);
+    }
+
+    public Event updateEvent(Long id, Event eventDetails) {
+        Event event = eventRepository.findById(id).orElseThrow(() -> new RuntimeException("Event not found"));
+        event.setName(eventDetails.getName());
+        event.setDescription(eventDetails.getDescription());
+        event.setDate(eventDetails.getDate());
+        event.setLocation(eventDetails.getLocation());
+        event.setTicketTypes(eventDetails.getTicketTypes());
+        return eventRepository.save(event);
+    }
+
+    public void deleteEvent(Long id) {
+        eventRepository.deleteById(id);
+    }
+
+    @Transactional(readOnly = true)
+    public Integer getAvailableQuantity(Long ticketTypeId) {
+        return ticketTypeRepository.findById(ticketTypeId)
+                .map(TicketType::getAvailableQuantity)
+                .orElse(null);
+    }
+
+    @Transactional(readOnly = true)
+    public BigDecimal getTicketPrice(Long ticketTypeId) {
+        return ticketTypeRepository.findById(ticketTypeId)
+                .map(TicketType::getPrice)
+                .orElse(null);
+    }
+
+    @Transactional
+    public void decrementTicketQuantity(Long ticketTypeId, Integer quantity) {
+        TicketType ticketType = ticketTypeRepository.findById(ticketTypeId)
+                .orElseThrow(() -> new RuntimeException("TicketType not found with id: " + ticketTypeId));
+
+        int newQuantity = ticketType.getAvailableQuantity() - quantity;
+        if (newQuantity < 0) {
+            throw new RuntimeException("Not enough tickets available for ticket type " + ticketTypeId);
+        }
+        ticketType.setAvailableQuantity(newQuantity);
+        ticketTypeRepository.save(ticketType);
+    }
+}
