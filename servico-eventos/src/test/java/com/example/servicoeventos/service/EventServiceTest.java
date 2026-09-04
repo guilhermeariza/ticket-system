@@ -1,5 +1,7 @@
 package com.example.servicoeventos.service;
 
+import com.example.servicoeventos.exception.InsufficientTicketsException;
+import com.example.servicoeventos.exception.ResourceNotFoundException;
 import com.example.servicoeventos.model.Event;
 import com.example.servicoeventos.model.TicketType;
 import com.example.servicoeventos.repository.EventRepository;
@@ -145,7 +147,7 @@ class EventServiceTest {
         when(eventRepository.findById(999L)).thenReturn(Optional.empty());
 
         // Act & Assert
-        assertThrows(RuntimeException.class, () -> {
+        assertThrows(ResourceNotFoundException.class, () -> {
             eventService.updateEvent(999L, testEvent);
         });
     }
@@ -214,24 +216,23 @@ class EventServiceTest {
     @Test
     void decrementTicketQuantity_WithSufficientTickets_ShouldDecrement() {
         // Arrange
-        when(ticketTypeRepository.findById(1L)).thenReturn(Optional.of(testTicketType));
-        when(ticketTypeRepository.save(any(TicketType.class))).thenReturn(testTicketType);
+        when(ticketTypeRepository.decrementIfAvailable(1L, 10)).thenReturn(1);
 
         // Act
         eventService.decrementTicketQuantity(1L, 10);
 
         // Assert
-        verify(ticketTypeRepository).findById(1L);
-        verify(ticketTypeRepository).save(testTicketType);
+        verify(ticketTypeRepository).decrementIfAvailable(1L, 10);
     }
 
     @Test
     void decrementTicketQuantity_WithInsufficientTickets_ShouldThrowException() {
         // Arrange
-        when(ticketTypeRepository.findById(1L)).thenReturn(Optional.of(testTicketType));
+        when(ticketTypeRepository.decrementIfAvailable(1L, 100)).thenReturn(0);
+        when(ticketTypeRepository.existsById(1L)).thenReturn(true);
 
         // Act & Assert
-        assertThrows(RuntimeException.class, () -> {
+        assertThrows(InsufficientTicketsException.class, () -> {
             eventService.decrementTicketQuantity(1L, 100); // Trying to buy more than available (50)
         });
     }
@@ -239,10 +240,11 @@ class EventServiceTest {
     @Test
     void decrementTicketQuantity_WhenTicketNotExists_ShouldThrowException() {
         // Arrange
-        when(ticketTypeRepository.findById(999L)).thenReturn(Optional.empty());
+        when(ticketTypeRepository.decrementIfAvailable(999L, 10)).thenReturn(0);
+        when(ticketTypeRepository.existsById(999L)).thenReturn(false);
 
         // Act & Assert
-        assertThrows(RuntimeException.class, () -> {
+        assertThrows(ResourceNotFoundException.class, () -> {
             eventService.decrementTicketQuantity(999L, 10);
         });
     }
@@ -250,24 +252,47 @@ class EventServiceTest {
     @Test
     void decrementTicketQuantity_ToZero_ShouldWork() {
         // Arrange
-        when(ticketTypeRepository.findById(1L)).thenReturn(Optional.of(testTicketType));
-        when(ticketTypeRepository.save(any(TicketType.class))).thenReturn(testTicketType);
+        when(ticketTypeRepository.decrementIfAvailable(1L, 50)).thenReturn(1);
 
         // Act
         eventService.decrementTicketQuantity(1L, 50); // Exactly the available quantity
 
         // Assert
-        verify(ticketTypeRepository).save(testTicketType);
+        verify(ticketTypeRepository).decrementIfAvailable(1L, 50);
     }
 
     @Test
     void decrementTicketQuantity_BelowZero_ShouldThrowException() {
         // Arrange
-        when(ticketTypeRepository.findById(1L)).thenReturn(Optional.of(testTicketType));
+        when(ticketTypeRepository.decrementIfAvailable(1L, 51)).thenReturn(0);
+        when(ticketTypeRepository.existsById(1L)).thenReturn(true);
 
         // Act & Assert
-        assertThrows(RuntimeException.class, () -> {
+        assertThrows(InsufficientTicketsException.class, () -> {
             eventService.decrementTicketQuantity(1L, 51); // One more than available
+        });
+    }
+
+    @Test
+    void releaseTicketQuantity_WhenExists_ShouldIncrement() {
+        // Arrange
+        when(ticketTypeRepository.existsById(1L)).thenReturn(true);
+
+        // Act
+        eventService.releaseTicketQuantity(1L, 10);
+
+        // Assert
+        verify(ticketTypeRepository).incrementAvailable(1L, 10);
+    }
+
+    @Test
+    void releaseTicketQuantity_WhenTicketNotExists_ShouldThrowException() {
+        // Arrange
+        when(ticketTypeRepository.existsById(999L)).thenReturn(false);
+
+        // Act & Assert
+        assertThrows(ResourceNotFoundException.class, () -> {
+            eventService.releaseTicketQuantity(999L, 10);
         });
     }
 }

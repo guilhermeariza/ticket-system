@@ -21,6 +21,9 @@ public class TicketType {
     @JsonBackReference
     private Event event;
 
+    @Version
+    private Long version;
+
     public Long getId() {
         return id;
     }
@@ -67,5 +70,9 @@ public class TicketType {
 
     public void setEvent(Event event) {
         this.event = event;
+    }
+
+    public Long getVersion() {
+        return version;
     }
 }

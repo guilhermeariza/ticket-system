@@ -47,12 +47,8 @@ public class EventController {
 
     @PutMapping("/{id}")
     public ResponseEntity<Event> updateEvent(@PathVariable Long id, @Valid @RequestBody Event eventDetails) {
-        try {
-            Event updatedEvent = eventService.updateEvent(id, eventDetails);
-            return ResponseEntity.ok(updatedEvent);
-        } catch (RuntimeException e) {
-            return ResponseEntity.notFound().build();
-        }
+        Event updatedEvent = eventService.updateEvent(id, eventDetails);
+        return ResponseEntity.ok(updatedEvent);
     }
 
     @DeleteMapping("/{id}")
@@ -76,11 +72,13 @@ public class EventController {
 
     @PutMapping("/ticket-types/{ticketTypeId}/decrement-quantity/{quantity}")
     public ResponseEntity<Void> decrementTicketQuantity(@PathVariable Long ticketTypeId, @PathVariable Integer quantity) {
-        try {
-            eventService.decrementTicketQuantity(ticketTypeId, quantity);
-            return ResponseEntity.ok().build();
-        } catch (RuntimeException e) {
-            return ResponseEntity.badRequest().build();
-        }
+        eventService.decrementTicketQuantity(ticketTypeId, quantity);
+        return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/ticket-types/{ticketTypeId}/release/{quantity}")
+    public ResponseEntity<Void> releaseTicketQuantity(@PathVariable Long ticketTypeId, @PathVariable Integer quantity) {
+        eventService.releaseTicketQuantity(ticketTypeId, quantity);
+        return ResponseEntity.ok().build();
     }
 }

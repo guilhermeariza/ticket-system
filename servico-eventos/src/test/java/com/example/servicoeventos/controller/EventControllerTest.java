@@ -1,5 +1,6 @@
 package com.example.servicoeventos.controller;
 
+import com.example.servicoeventos.exception.ResourceNotFoundException;
 import com.example.servicoeventos.model.Event;
 import com.example.servicoeventos.service.EventService;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -140,7 +141,7 @@ class EventControllerTest {
     void updateEvent_WhenNotExists_ShouldReturn404() throws Exception {
         // Arrange
         when(eventService.updateEvent(anyLong(), any(Event.class)))
-                .thenThrow(new RuntimeException("Event not found"));
+                .thenThrow(new ResourceNotFoundException("Event", 999L));
 
         // Act & Assert
         mockMvc.perform(put("/api/events/999")

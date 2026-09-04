@@ -1,5 +1,7 @@
 package com.example.servicoeventos.service;
 
+import com.example.servicoeventos.exception.InsufficientTicketsException;
+import com.example.servicoeventos.exception.ResourceNotFoundException;
 import com.example.servicoeventos.model.Event;
 import com.example.servicoeventos.model.TicketType;
 import com.example.servicoeventos.repository.EventRepository;
@@ -36,7 +38,8 @@ public class EventService {
     }
 
     public Event updateEvent(Long id, Event eventDetails) {
-        Event event = eventRepository.findById(id).orElseThrow(() -> new RuntimeException("Event not found"));
+        Event event = eventRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Event", id));
         event.setName(eventDetails.getName());
         event.setDescription(eventDetails.getDescription());
         event.setDate(eventDetails.getDate());
@@ -65,14 +68,20 @@ public class EventService {
 
     @Transactional
     public void decrementTicketQuantity(Long ticketTypeId, Integer quantity) {
-        TicketType ticketType = ticketTypeRepository.findById(ticketTypeId)
-                .orElseThrow(() -> new RuntimeException("TicketType not found with id: " + ticketTypeId));
-
-        int newQuantity = ticketType.getAvailableQuantity() - quantity;
-        if (newQuantity < 0) {
-            throw new RuntimeException("Not enough tickets available for ticket type " + ticketTypeId);
+        int rowsAffected = ticketTypeRepository.decrementIfAvailable(ticketTypeId, quantity);
+        if (rowsAffected == 0) {
+            if (!ticketTypeRepository.existsById(ticketTypeId)) {
+                throw new ResourceNotFoundException("TicketType", ticketTypeId);
+            }
+            throw new InsufficientTicketsException("Not enough tickets available for ticket type " + ticketTypeId);
         }
-        ticketType.setAvailableQuantity(newQuantity);
-        ticketTypeRepository.save(ticketType);
+    }
+
+    @Transactional
+    public void releaseTicketQuantity(Long ticketTypeId, Integer quantity) {
+        if (!ticketTypeRepository.existsById(ticketTypeId)) {
+            throw new ResourceNotFoundException("TicketType", ticketTypeId);
+        }
+        ticketTypeRepository.incrementAvailable(ticketTypeId, quantity);
     }
 }
