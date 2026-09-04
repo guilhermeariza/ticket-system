@@ -8,13 +8,6 @@ spring:
     openfeign:
       circuitbreaker:
         enabled: true
-
-feign:
-  client:
-    config:
-      default:
-        connectTimeout: 3000
-        readTimeout: 3000
   datasource:
     url: ${DB_URL:jdbc:postgresql://pedidos-db:5432/pedidos_db}
     username: ${DB_USERNAME:user}
@@ -28,6 +21,13 @@ feign:
     enabled: true
     baseline-on-migrate: true
     validate-on-migrate: true
+
+feign:
+  client:
+    config:
+      default:
+        connectTimeout: 3000
+        readTimeout: 3000
 
 # Actuator configuration
 management:
