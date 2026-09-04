@@ -1,5 +1,6 @@
 package com.example.usersservice.controller;
 
+import com.example.usersservice.exception.ResourceNotFoundException;
 import com.example.usersservice.model.User;
 import com.example.usersservice.service.UserService;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -190,7 +191,7 @@ class UserControllerTest {
         updateRequest.setEmail("updated@example.com");
 
         when(userService.updateUser(eq(999L), any(User.class)))
-                .thenThrow(new RuntimeException("User not found"));
+                .thenThrow(new ResourceNotFoundException("User", 999L));
 
         // Act & Assert
         mockMvc.perform(put("/api/users/999")

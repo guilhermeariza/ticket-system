@@ -1,5 +1,6 @@
 package com.example.usersservice.service;
 
+import com.example.usersservice.exception.ResourceNotFoundException;
 import com.example.usersservice.model.User;
 import com.example.usersservice.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -161,11 +162,11 @@ class UserServiceTest {
         when(userRepository.findById(999L)).thenReturn(Optional.empty());
 
         // Act & Assert
-        RuntimeException exception = assertThrows(RuntimeException.class, () -> {
+        ResourceNotFoundException exception = assertThrows(ResourceNotFoundException.class, () -> {
             userService.updateUser(999L, updatedDetails);
         });
 
-        assertEquals("User not found", exception.getMessage());
+        assertEquals("User not found with id: 999", exception.getMessage());
         verify(userRepository, times(1)).findById(999L);
         verify(userRepository, never()).save(any(User.class));
     }

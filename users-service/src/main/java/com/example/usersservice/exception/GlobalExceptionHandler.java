@@ -1,4 +1,4 @@
-package com.example.servicopedidos.exception;
+package com.example.usersservice.exception;
 
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
@@ -25,11 +25,6 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<ErrorResponse> handleBusinessException(BusinessException ex, HttpServletRequest request) {
         return build(HttpStatus.BAD_REQUEST, ex.getMessage(), request);
-    }
-
-    @ExceptionHandler(InsufficientTicketsException.class)
-    public ResponseEntity<ErrorResponse> handleInsufficientTickets(InsufficientTicketsException ex, HttpServletRequest request) {
-        return build(HttpStatus.CONFLICT, ex.getMessage(), request);
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

@@ -1,4 +1,4 @@
-package com.example.servicopedidos.exception;
+package com.example.usersservice.exception;
 
 import java.time.LocalDateTime;
 import java.util.Map;

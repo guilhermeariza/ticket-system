@@ -1,5 +1,6 @@
 package com.example.usersservice.service;
 
+import com.example.usersservice.exception.ResourceNotFoundException;
 import com.example.usersservice.model.User;
 import com.example.usersservice.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -27,7 +28,7 @@ public class UserService {
     }
 
     public User updateUser(Long id, User userDetails) {
-        User user = userRepository.findById(id).orElseThrow(() -> new RuntimeException("User not found"));
+        User user = userRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("User", id));
         user.setUsername(userDetails.getUsername());
         user.setEmail(userDetails.getEmail());
         return userRepository.save(user);
