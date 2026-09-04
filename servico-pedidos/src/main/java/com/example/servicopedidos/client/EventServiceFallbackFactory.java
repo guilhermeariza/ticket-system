@@ -1,5 +1,6 @@
 package com.example.servicopedidos.client;
 
+import com.example.servicopedidos.exception.BusinessException;
 import feign.FeignException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -39,7 +40,7 @@ public class EventServiceFallbackFactory implements FallbackFactory<EventService
                 }
                 log.error("EventService is unavailable. Cannot decrement quantity for ticket type: {}. Quantity: {}",
                           ticketTypeId, quantity, cause);
-                throw new RuntimeException("Event service is currently unavailable. Please try again later.");
+                throw new BusinessException("Event service is currently unavailable. Please try again later.");
             }
 
             @Override
