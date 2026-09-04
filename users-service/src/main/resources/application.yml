@@ -1,1 +1,5 @@
-# Config moved to bootstrap.yml
+spring:
+  application:
+    name: users-service
+  config:
+    import: "configserver:http://config-server:8888"
