@@ -4,6 +4,8 @@ server:
 spring:
   application:
     name: notifications-service
+  # Defaults below are local development placeholders only -
+  # override via env vars in any shared or production environment. See .env.example.
   mail:
     host: ${MAIL_HOST:smtp.gmail.com}
     port: ${MAIL_PORT:587}

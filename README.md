@@ -114,7 +114,7 @@ sequenceDiagram
         EV-->>O: 200 OK
         O->>DB: salva pedido (status PENDING)
         O->>MQ: publica OrderCreatedEvent
-        O-->>GW: 201 Created
+        O-->>GW: 200 OK
         GW-->>U: pedido criado
         MQ->>PAY: consome OrderCreatedEvent
         PAY->>PAY: processa pagamento

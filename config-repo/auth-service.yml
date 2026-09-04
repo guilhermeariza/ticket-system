@@ -4,6 +4,8 @@ server:
 spring:
   application:
     name: auth-service
+  # Defaults below (user/password, JWT secret) are for local development only -
+  # override via env vars in any shared or production environment. See .env.example.
   datasource:
     url: ${DB_URL:jdbc:postgresql://auth-db:5432/auth_db}
     username: ${DB_USERNAME:user}
@@ -18,6 +20,7 @@ spring:
     baseline-on-migrate: true
     validate-on-migrate: true
 
+# Default secret below is a development placeholder only - override via JWT_SECRET.
 jwt:
   secret: ${JWT_SECRET:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
   expiration: ${JWT_EXPIRATION:86400000} # 24 hours in milliseconds
