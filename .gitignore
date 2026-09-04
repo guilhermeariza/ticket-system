@@ -87,7 +87,6 @@ tmp/
 *~.nib
 
 # Docker
-.dockerignore
 docker-compose.override.yml
 
 # Certificates
