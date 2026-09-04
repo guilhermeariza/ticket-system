@@ -1,5 +1,6 @@
 package com.example.paymentsservice.controller;
 
+import com.example.paymentsservice.exception.BusinessException;
 import com.example.paymentsservice.model.Payment;
 import com.example.paymentsservice.model.PaymentStatus;
 import com.example.paymentsservice.service.PaymentService;
@@ -110,7 +111,7 @@ class PaymentControllerTest {
         invalidPayment.setAmount(null);
 
         when(paymentService.processPayment(any(Payment.class)))
-                .thenThrow(new RuntimeException("Invalid payment amount"));
+                .thenThrow(new BusinessException("Invalid payment amount"));
 
         // Act & Assert
         mockMvc.perform(post("/api/payments")
@@ -129,7 +130,7 @@ class PaymentControllerTest {
         invalidPayment.setAmount(BigDecimal.ZERO);
 
         when(paymentService.processPayment(any(Payment.class)))
-                .thenThrow(new RuntimeException("Invalid payment amount"));
+                .thenThrow(new BusinessException("Invalid payment amount"));
 
         // Act & Assert
         mockMvc.perform(post("/api/payments")
@@ -147,7 +148,7 @@ class PaymentControllerTest {
         invalidPayment.setAmount(new BigDecimal("150.00"));
 
         when(paymentService.processPayment(any(Payment.class)))
-                .thenThrow(new RuntimeException("Order ID is required"));
+                .thenThrow(new BusinessException("Order ID is required"));
 
         // Act & Assert
         mockMvc.perform(post("/api/payments")
@@ -187,7 +188,7 @@ class PaymentControllerTest {
     void processPayment_WithEmptyBody_ShouldProcessWithDefaults() throws Exception {
         // Arrange
         when(paymentService.processPayment(any(Payment.class)))
-                .thenThrow(new RuntimeException("Order ID is required"));
+                .thenThrow(new BusinessException("Order ID is required"));
 
         // Act & Assert
         mockMvc.perform(post("/api/payments")
@@ -262,7 +263,7 @@ class PaymentControllerTest {
     }
 
     @Test
-    void processPayment_WithServiceException_ShouldReturn400WithNullBody() throws Exception {
+    void processPayment_WithUnexpectedServiceException_ShouldReturn500WithErrorBody() throws Exception {
         // Arrange
         Payment payment = new Payment();
         payment.setOrderId(100L);
@@ -275,6 +276,7 @@ class PaymentControllerTest {
         mockMvc.perform(post("/api/payments")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(payment)))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.status").value(500));
     }
 }

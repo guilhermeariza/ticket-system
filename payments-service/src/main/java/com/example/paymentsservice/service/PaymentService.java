@@ -2,6 +2,7 @@ package com.example.paymentsservice.service;
 
 import com.example.paymentsservice.config.RabbitMQConfig;
 import com.example.paymentsservice.event.OrderCreatedEvent;
+import com.example.paymentsservice.exception.BusinessException;
 import com.example.paymentsservice.event.PaymentProcessedEvent;
 import com.example.paymentsservice.model.Payment;
 import com.example.paymentsservice.model.PaymentStatus;
@@ -37,10 +38,10 @@ public class PaymentService {
 
         // Validate payment
         if (payment.getAmount() == null || payment.getAmount().signum() <= 0) {
-            throw new RuntimeException("Invalid payment amount");
+            throw new BusinessException("Invalid payment amount");
         }
         if (payment.getOrderId() == null) {
-            throw new RuntimeException("Order ID is required");
+            throw new BusinessException("Order ID is required");
         }
 
         // Generate transaction ID

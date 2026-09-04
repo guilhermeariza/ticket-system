@@ -22,11 +22,7 @@ public class PaymentController {
 
     @PostMapping
     public ResponseEntity<Payment> processPayment(@RequestBody Payment payment) {
-        try {
-            Payment processedPayment = paymentService.processPayment(payment);
-            return ResponseEntity.ok(processedPayment);
-        } catch (RuntimeException e) {
-            return ResponseEntity.badRequest().body(null); // Or a more specific error response
-        }
+        Payment processedPayment = paymentService.processPayment(payment);
+        return ResponseEntity.ok(processedPayment);
     }
 }
