@@ -39,8 +39,11 @@ services:
     networks:
       - spring-cloud-network
     depends_on:
-      - discovery-service
-      - config-server
+      discovery-service:
+        condition: service_healthy
+      config-server:
+        condition: service_healthy
+    restart: on-failure
     environment:
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://discovery-service:8761/eureka/
       - SPRING_PROFILES_ACTIVE=default
@@ -78,9 +81,13 @@ services:
     networks:
       - spring-cloud-network
     depends_on:
-      - discovery-service
-      - config-server
-      - auth-db
+      discovery-service:
+        condition: service_healthy
+      config-server:
+        condition: service_healthy
+      auth-db:
+        condition: service_healthy
+    restart: on-failure
     environment:
       - SPRING_PROFILES_ACTIVE=default
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://discovery-service:8761/eureka/
@@ -104,9 +111,9 @@ services:
       - spring-cloud-network
     depends_on:
       config-server:
-        condition: service_started
+        condition: service_healthy
       discovery-service:
-        condition: service_started
+        condition: service_healthy
       users-db:
         condition: service_healthy
     restart: on-failure
@@ -131,9 +138,13 @@ services:
     networks:
       - spring-cloud-network
     depends_on:
-      - discovery-service
-      - config-server
-      - eventos-db
+      discovery-service:
+        condition: service_healthy
+      config-server:
+        condition: service_healthy
+      eventos-db:
+        condition: service_healthy
+    restart: on-failure
     environment:
       - SPRING_PROFILES_ACTIVE=default
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://discovery-service:8761/eureka/
@@ -155,10 +166,15 @@ services:
     networks:
       - spring-cloud-network
     depends_on:
-      - discovery-service
-      - config-server
-      - pedidos-db
-      - rabbitmq
+      discovery-service:
+        condition: service_healthy
+      config-server:
+        condition: service_healthy
+      pedidos-db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: on-failure
     environment:
       - SPRING_PROFILES_ACTIVE=default
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://discovery-service:8761/eureka/
@@ -181,9 +197,9 @@ services:
       - spring-cloud-network
     depends_on:
       config-server:
-        condition: service_started
+        condition: service_healthy
       discovery-service:
-        condition: service_started
+        condition: service_healthy
       payments-db:
         condition: service_healthy
       rabbitmq:
@@ -211,9 +227,9 @@ services:
       - spring-cloud-network
     depends_on:
       config-server:
-        condition: service_started
+        condition: service_healthy
       discovery-service:
-        condition: service_started
+        condition: service_healthy
       rabbitmq:
         condition: service_healthy
     restart: on-failure
