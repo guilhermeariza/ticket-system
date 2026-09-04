@@ -8,6 +8,13 @@ spring:
     openfeign:
       circuitbreaker:
         enabled: true
+
+feign:
+  client:
+    config:
+      default:
+        connectTimeout: 3000
+        readTimeout: 3000
   datasource:
     url: ${DB_URL:jdbc:postgresql://pedidos-db:5432/pedidos_db}
     username: ${DB_USERNAME:user}
@@ -63,7 +70,3 @@ resilience4j:
         waitDuration: 1s
         enableExponentialBackoff: true
         exponentialBackoffMultiplier: 2
-  timelimiter:
-    instances:
-      eventService:
-        timeoutDuration: 3s
