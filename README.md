@@ -160,7 +160,7 @@ Um teste de integração (`TicketConcurrencyIntegrationTest`, em `events-service
 - A compensação de estoque descrita acima é *best effort* (best-effort release + log), não uma saga completa com outbox transacional — em falhas simultâneas de rede na liberação, o estoque pode ficar reservado indevidamente até correção manual.
 - Autenticação via JWT sem refresh token: o token expira e exige novo login, sem renovação silenciosa.
 - Não há rate limiting no API Gateway.
-- Cobertura de testes é desigual entre módulos — `servico-eventos` e `servico-pedidos` têm testes de integração e concorrência; outros serviços têm cobertura menor.
+- Cobertura de testes é desigual entre módulos — `events-service` e `orders-service` têm testes de integração e concorrência; outros serviços têm cobertura menor.
 
 ## Desenvolvimento assistido por IA
 

@@ -32,14 +32,14 @@ spring:
             - Path=/api/users/**
           filters:
             - JwtAuthenticationFilter
-        - id: servico-eventos
-          uri: lb://servico-eventos
+        - id: events-service
+          uri: lb://events-service
           predicates:
             - Path=/api/events/**
           filters:
             - JwtAuthenticationFilter
-        - id: servico-pedidos
-          uri: lb://servico-pedidos
+        - id: orders-service
+          uri: lb://orders-service
           predicates:
             - Path=/api/orders/**
           filters:

@@ -98,18 +98,18 @@ npm run build     # Production build
 
 ### Order Processing Flow
 
-1. **servico-pedidos** receives order request with ticketTypeId and quantity
-2. Calls **servico-eventos** via Feign to:
+1. **orders-service** receives order request with ticketTypeId and quantity
+2. Calls **events-service** via Feign to:
    - Check ticket availability
    - Get ticket price
    - Decrement available quantity (optimistic locking)
 3. Creates order with status PENDING
 4. Publishes `OrderCreatedEvent` to RabbitMQ
 5. **payments-service** receives event, processes payment, publishes `PaymentProcessedEvent`
-6. **servico-pedidos** updates order status (PAID or CANCELLED)
+6. **orders-service** updates order status (PAID or CANCELLED)
 7. **notifications-service** sends email confirmation
 
-**Circuit Breaker**: servico-pedidos has Resilience4j circuit breaker on servico-eventos calls. If eventos service is down, orders fail gracefully.
+**Circuit Breaker**: orders-service has Resilience4j circuit breaker on events-service calls. If events-service is down, orders fail gracefully.
 
 ### Database Migration Strategy
 
@@ -198,7 +198,7 @@ Always build from root first: `mvn clean install` before building individual mod
 
 Services communicate via Docker network `spring-cloud-network`.
 - Service names in docker-compose.yml are DNS names
-- Example: `servico-eventos` calls `http://servico-eventos:8083/api/events`
+- Example: `events-service` calls `http://events-service:8083/api/events`
 - Eureka uses service names for registration
 
 ### Feign Client Configuration
@@ -271,7 +271,7 @@ Frontend uses environment variable `REACT_APP_API_URL` (default: http://localhos
 **API patterns**:
 - All API calls go through `/api/<service-route>`
 - Gateway routes by first path segment after /api
-- Example: `/api/events` → servico-eventos, `/api/orders` → servico-pedidos
+- Example: `/api/events` → events-service, `/api/orders` → orders-service
 
 ## Health Checks
 

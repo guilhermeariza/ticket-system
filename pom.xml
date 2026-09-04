@@ -8,7 +8,7 @@
 		<version>3.1.5</version>
 		<relativePath/> <!-- lookup parent from repository -->
 	</parent>
-	<groupId>com.example</groupId>
+	<groupId>com.guilhermeariza.ticketsystem</groupId>
 	<artifactId>ticket-system</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
 	<packaging>pom</packaging>
@@ -26,8 +26,8 @@
 		<module>api-gateway</module>
 		<module>auth-service</module>
 		<module>users-service</module>
-		<module>servico-eventos</module>
-		<module>servico-pedidos</module>
+		<module>events-service</module>
+		<module>orders-service</module>
 		<module>payments-service</module>
 		<module>notifications-service</module>
 	</modules>

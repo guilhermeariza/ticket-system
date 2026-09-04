@@ -39,7 +39,7 @@ sequenceDiagram
     activate App
 
     App->>App: Atualiza o estado (ex: `setLoading(true)`)
-    App->>+GW: GET /servico-eventos/api/events/{id}
+    App->>+GW: GET /events-service/api/events/{id}
     GW-->>-App: Retorna os detalhes do evento (JSON)
     App->>App: Atualiza o estado com os dados do evento (`setEvent(data)`, `setLoading(false)`)
     App->>U: Renderiza a página de detalhes do evento

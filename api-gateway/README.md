@@ -23,9 +23,9 @@ sequenceDiagram
     participant DS as Discovery Service
     participant ES as Serviço de Eventos
 
-    FE->>+GW: POST /servico-eventos/api/events (com token JWT)
+    FE->>+GW: POST /events-service/api/events (com token JWT)
     Note over GW: Verifica o token JWT (segurança)
-    GW->>+DS: Onde está 'servico-eventos'?
+    GW->>+DS: Onde está 'events-service'?
     DS-->>-GW: Responde com o endereço do serviço
     GW->>+ES: Encaminha a requisição: POST /api/events
     ES-->>-GW: Responde com o evento criado (201 Created)

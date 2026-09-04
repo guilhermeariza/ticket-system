@@ -9,4 +9,4 @@ scrape_configs:
   - job_name: 'spring-micrometer'
     metrics_path: '/actuator/prometheus'
     static_configs:
-      - targets: ['auth-service:8081', 'users-service:8082', 'servico-eventos:8083', 'servico-pedidos:8084', 'payments-service:8085', 'notifications-service:8086']
+      - targets: ['auth-service:8081', 'users-service:8082', 'events-service:8083', 'orders-service:8084', 'payments-service:8085', 'notifications-service:8086']

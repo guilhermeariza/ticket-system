@@ -1,5 +1,0 @@
-spring:
-  application:
-    name: servico-pedidos
-  config:
-    import: "configserver:http://config-server:8888"
