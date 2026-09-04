@@ -1,6 +1,7 @@
 package com.example.servicopedidos.controller;
 
 import com.example.servicopedidos.dto.OrderRequest;
+import com.example.servicopedidos.exception.ResourceNotFoundException;
 import com.example.servicopedidos.model.Order;
 import com.example.servicopedidos.model.OrderItem;
 import com.example.servicopedidos.model.OrderStatus;
@@ -107,7 +108,7 @@ class OrderControllerTest {
     @Test
     void createOrder_WithValidDataAndUserId_ShouldReturn200() throws Exception {
         // Arrange
-        when(orderService.createOrderFromRequest(anyString(), any(OrderRequest.class)))
+        when(orderService.createOrder(anyString(), any(OrderRequest.class)))
                 .thenReturn(testOrder);
 
         // Act & Assert
@@ -194,7 +195,7 @@ class OrderControllerTest {
     void updateOrder_WhenNotExists_ShouldReturn404() throws Exception {
         // Arrange
         when(orderService.updateOrder(any(), any(Order.class)))
-                .thenThrow(new RuntimeException("Order not found"));
+                .thenThrow(new ResourceNotFoundException("Order", 999L));
 
         // Act & Assert
         mockMvc.perform(put("/api/orders/999")

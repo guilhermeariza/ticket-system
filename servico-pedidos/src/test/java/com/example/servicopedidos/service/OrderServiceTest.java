@@ -5,10 +5,16 @@ import com.example.servicopedidos.config.RabbitMQConfig;
 import com.example.servicopedidos.dto.OrderRequest;
 import com.example.servicopedidos.event.OrderCreatedEvent;
 import com.example.servicopedidos.event.PaymentProcessedEvent;
+import com.example.servicopedidos.exception.BusinessException;
+import com.example.servicopedidos.exception.InsufficientTicketsException;
+import com.example.servicopedidos.exception.ResourceNotFoundException;
 import com.example.servicopedidos.model.Order;
 import com.example.servicopedidos.model.OrderItem;
 import com.example.servicopedidos.model.OrderStatus;
 import com.example.servicopedidos.repository.OrderRepository;
+import feign.FeignException;
+import feign.Request;
+import feign.RequestTemplate;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -23,6 +29,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -31,7 +38,6 @@ import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -74,6 +80,12 @@ class OrderServiceTest {
         testOrderRequest = new OrderRequest();
         testOrderRequest.setTicketTypeId(1L);
         testOrderRequest.setQuantity(2);
+    }
+
+    private FeignException.Conflict conflictException() {
+        Request request = Request.create(Request.HttpMethod.PUT, "/api/events/ticket-types/1/decrement-quantity/2",
+                java.util.Collections.emptyMap(), null, StandardCharsets.UTF_8, new RequestTemplate());
+        return new FeignException.Conflict("Conflict", request, null, null);
     }
 
     @Test
@@ -120,37 +132,21 @@ class OrderServiceTest {
     }
 
     @Test
-    void createOrderFromRequest_ShouldCreateOrderWithItems() {
+    void createOrder_WithSufficientTickets_ShouldCreateOrder() {
         // Arrange
         String userId = "user123";
-        when(eventServiceClient.getAvailableQuantity(1L)).thenReturn(10);
         when(eventServiceClient.getTicketPrice(1L)).thenReturn(new BigDecimal("50.00"));
         when(orderRepository.save(any(Order.class))).thenReturn(testOrder);
 
         // Act
-        Order result = orderService.createOrderFromRequest(userId, testOrderRequest);
-
-        // Assert
-        assertNotNull(result);
-        verify(eventServiceClient).getAvailableQuantity(1L);
-        verify(eventServiceClient).getTicketPrice(1L);
-        verify(eventServiceClient).decrementTicketQuantity(1L, 2);
-        verify(orderRepository).save(any(Order.class));
-    }
-
-    @Test
-    void createOrder_WithSufficientTickets_ShouldCreateOrder() {
-        // Arrange
-        when(eventServiceClient.getAvailableQuantity(anyLong())).thenReturn(10);
-        when(eventServiceClient.getTicketPrice(anyLong())).thenReturn(new BigDecimal("50.00"));
-        when(orderRepository.save(any(Order.class))).thenReturn(testOrder);
-
-        // Act
-        Order result = orderService.createOrder(testOrder);
+        Order result = orderService.createOrder(userId, testOrderRequest);
 
         // Assert
         assertNotNull(result);
         assertEquals(OrderStatus.PENDING, result.getStatus());
+        verify(eventServiceClient).getTicketPrice(1L);
+        verify(eventServiceClient).decrementTicketQuantity(1L, 2);
+        verify(orderRepository).save(any(Order.class));
         verify(rabbitTemplate).convertAndSend(
                 eq(RabbitMQConfig.ORDERS_EXCHANGE),
                 eq(RabbitMQConfig.ORDER_CREATED_ROUTING_KEY),
@@ -159,54 +155,50 @@ class OrderServiceTest {
     }
 
     @Test
-    void createOrder_WithInsufficientTickets_ShouldThrowException() {
+    void createOrder_WhenPriceIsNull_ShouldThrowBusinessException() {
         // Arrange
-        when(eventServiceClient.getAvailableQuantity(anyLong())).thenReturn(1); // Less than requested (2)
+        when(eventServiceClient.getTicketPrice(anyLong())).thenReturn(null);
 
         // Act & Assert
-        assertThrows(RuntimeException.class, () -> {
-            orderService.createOrder(testOrder);
-        });
+        assertThrows(BusinessException.class, () -> orderService.createOrder("user123", testOrderRequest));
         verify(orderRepository, never()).save(any());
     }
 
     @Test
-    void createOrder_WhenPriceIsNull_ShouldThrowException() {
+    void createOrder_WhenDecrementFails_ShouldNotPersistOrder() {
         // Arrange
-        when(eventServiceClient.getAvailableQuantity(anyLong())).thenReturn(10);
-        when(eventServiceClient.getTicketPrice(anyLong())).thenReturn(null);
+        when(eventServiceClient.getTicketPrice(anyLong())).thenReturn(new BigDecimal("50.00"));
+        doThrow(new InsufficientTicketsException("Not enough tickets"))
+                .when(eventServiceClient).decrementTicketQuantity(1L, 2);
 
         // Act & Assert
-        assertThrows(RuntimeException.class, () -> {
-            orderService.createOrder(testOrder);
-        });
+        assertThrows(InsufficientTicketsException.class, () -> orderService.createOrder("user123", testOrderRequest));
+        verify(orderRepository, never()).save(any());
+        verify(eventServiceClient, never()).releaseTickets(anyLong(), any());
     }
 
     @Test
-    void createOrder_ShouldDecrementTicketQuantity() {
+    void createOrder_WhenSaveFailsAfterDecrement_ShouldReleaseReservedTickets() {
         // Arrange
-        when(eventServiceClient.getAvailableQuantity(anyLong())).thenReturn(10);
         when(eventServiceClient.getTicketPrice(anyLong())).thenReturn(new BigDecimal("50.00"));
-        when(orderRepository.save(any(Order.class))).thenReturn(testOrder);
+        when(orderRepository.save(any(Order.class))).thenThrow(new RuntimeException("DB unavailable"));
 
-        // Act
-        orderService.createOrder(testOrder);
-
-        // Assert
+        // Act & Assert
+        assertThrows(RuntimeException.class, () -> orderService.createOrder("user123", testOrderRequest));
         verify(eventServiceClient).decrementTicketQuantity(1L, 2);
+        verify(eventServiceClient).releaseTickets(1L, 2);
     }
 
     @Test
     void createOrder_ShouldPublishOrderCreatedEvent() {
         // Arrange
-        when(eventServiceClient.getAvailableQuantity(anyLong())).thenReturn(10);
         when(eventServiceClient.getTicketPrice(anyLong())).thenReturn(new BigDecimal("50.00"));
         when(orderRepository.save(any(Order.class))).thenReturn(testOrder);
 
         ArgumentCaptor<OrderCreatedEvent> eventCaptor = ArgumentCaptor.forClass(OrderCreatedEvent.class);
 
         // Act
-        orderService.createOrder(testOrder);
+        orderService.createOrder("user123", testOrderRequest);
 
         // Assert
         verify(rabbitTemplate).convertAndSend(
@@ -218,6 +210,35 @@ class OrderServiceTest {
         OrderCreatedEvent capturedEvent = eventCaptor.getValue();
         assertEquals(testOrder.getId(), capturedEvent.getOrderId());
         assertEquals(testOrder.getUserId(), capturedEvent.getUserId());
+    }
+
+    @Test
+    void createOrder_ShouldCalculateTotalAmountCorrectly() {
+        // Arrange
+        when(eventServiceClient.getTicketPrice(anyLong())).thenReturn(new BigDecimal("50.00"));
+        when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> {
+            Order savedOrder = invocation.getArgument(0);
+            assertEquals(new BigDecimal("100.00"), savedOrder.getTotalAmount()); // 2 tickets * 50.00
+            return savedOrder;
+        });
+
+        // Act
+        orderService.createOrder("user123", testOrderRequest);
+
+        // Assert
+        verify(orderRepository).save(any(Order.class));
+    }
+
+    @Test
+    void createOrderFallback_WhenConflict_ShouldThrowInsufficientTickets() {
+        assertThrows(InsufficientTicketsException.class,
+                () -> orderService.createOrderFallback("user123", testOrderRequest, conflictException()));
+    }
+
+    @Test
+    void createOrderFallback_WhenServiceDown_ShouldThrowBusinessException() {
+        assertThrows(BusinessException.class,
+                () -> orderService.createOrderFallback("user123", testOrderRequest, new java.io.IOException("timeout")));
     }
 
     @Test
@@ -246,7 +267,7 @@ class OrderServiceTest {
         when(orderRepository.findById(999L)).thenReturn(Optional.empty());
 
         // Act & Assert
-        assertThrows(RuntimeException.class, () -> {
+        assertThrows(ResourceNotFoundException.class, () -> {
             orderService.updateOrder(999L, testOrder);
         });
     }
@@ -280,7 +301,7 @@ class OrderServiceTest {
         when(orderRepository.findById(999L)).thenReturn(Optional.empty());
 
         // Act & Assert
-        assertThrows(RuntimeException.class, () -> {
+        assertThrows(ResourceNotFoundException.class, () -> {
             orderService.updateOrderStatus(999L, OrderStatus.PAID);
         });
     }
@@ -313,23 +334,5 @@ class OrderServiceTest {
         // Assert
         verify(orderRepository).findById(1L);
         verify(orderRepository).save(testOrder);
-    }
-
-    @Test
-    void createOrder_ShouldCalculateTotalAmountCorrectly() {
-        // Arrange
-        when(eventServiceClient.getAvailableQuantity(anyLong())).thenReturn(10);
-        when(eventServiceClient.getTicketPrice(anyLong())).thenReturn(new BigDecimal("50.00"));
-        when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> {
-            Order savedOrder = invocation.getArgument(0);
-            assertEquals(new BigDecimal("100.00"), savedOrder.getTotalAmount()); // 2 tickets * 50.00
-            return savedOrder;
-        });
-
-        // Act
-        orderService.createOrder(testOrder);
-
-        // Assert
-        verify(orderRepository).save(any(Order.class));
     }
 }

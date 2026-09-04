@@ -49,18 +49,14 @@ public class OrderController {
             return ResponseEntity.status(401).build();
         }
 
-        Order order = orderService.createOrderFromRequest(userId, orderRequest);
+        Order order = orderService.createOrder(userId, orderRequest);
         return ResponseEntity.ok(order);
     }
 
     @PutMapping("/{id}")
     public ResponseEntity<Order> updateOrder(@PathVariable Long id, @RequestBody Order orderDetails) {
-        try {
-            Order updatedOrder = orderService.updateOrder(id, orderDetails);
-            return ResponseEntity.ok(updatedOrder);
-        } catch (RuntimeException e) {
-            return ResponseEntity.notFound().build();
-        }
+        Order updatedOrder = orderService.updateOrder(id, orderDetails);
+        return ResponseEntity.ok(updatedOrder);
     }
 
     @DeleteMapping("/{id}")

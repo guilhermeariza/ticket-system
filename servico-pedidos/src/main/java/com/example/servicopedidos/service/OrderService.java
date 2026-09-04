@@ -5,13 +5,16 @@ import com.example.servicopedidos.config.RabbitMQConfig;
 import com.example.servicopedidos.dto.OrderRequest;
 import com.example.servicopedidos.event.OrderCreatedEvent;
 import com.example.servicopedidos.event.PaymentProcessedEvent;
+import com.example.servicopedidos.exception.BusinessException;
+import com.example.servicopedidos.exception.InsufficientTicketsException;
+import com.example.servicopedidos.exception.ResourceNotFoundException;
+import feign.FeignException;
 import com.example.servicopedidos.model.Order;
 import com.example.servicopedidos.model.OrderItem;
 import com.example.servicopedidos.model.OrderStatus;
 import com.example.servicopedidos.repository.OrderRepository;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import io.github.resilience4j.retry.annotation.Retry;
-import io.github.resilience4j.timelimiter.annotation.TimeLimiter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
@@ -51,64 +54,66 @@ public class OrderService {
     }
 
     @Transactional
-    public Order createOrderFromRequest(String userId, OrderRequest orderRequest) {
-        // Create Order from OrderRequest
+    @CircuitBreaker(name = "eventService", fallbackMethod = "createOrderFallback")
+    @Retry(name = "eventService")
+    public Order createOrder(String userId, OrderRequest orderRequest) {
         Order order = new Order();
         order.setUserId(userId);
 
-        // Create OrderItem
         OrderItem item = new OrderItem();
         item.setTicketTypeId(orderRequest.getTicketTypeId());
         item.setQuantity(orderRequest.getQuantity());
 
-        // Set items list
         List<OrderItem> items = new ArrayList<>();
         items.add(item);
         order.setItems(items);
 
-        // Call existing createOrder logic
-        return createOrder(order);
-    }
-
-    @Transactional
-    @CircuitBreaker(name = "eventService", fallbackMethod = "createOrderFallback")
-    @Retry(name = "eventService")
-    @TimeLimiter(name = "eventService")
-    public Order createOrder(Order order) {
-        // Validate ticket availability and calculate total amount
+        // Price is looked up up front; availability is no longer checked separately here -
+        // the decrement call below is itself the atomic availability check (see events-service).
         BigDecimal totalAmount = BigDecimal.ZERO;
-        for (OrderItem item : order.getItems()) {
-            Integer availableQuantity = eventServiceClient.getAvailableQuantity(item.getTicketTypeId());
-            if (availableQuantity == null || availableQuantity < item.getQuantity()) {
-                throw new RuntimeException("Not enough tickets available for ticket type " + item.getTicketTypeId());
-            }
-            BigDecimal price = eventServiceClient.getTicketPrice(item.getTicketTypeId());
+        for (OrderItem orderItem : order.getItems()) {
+            BigDecimal price = eventServiceClient.getTicketPrice(orderItem.getTicketTypeId());
             if (price == null) {
-                throw new RuntimeException("Could not determine price for ticket type " + item.getTicketTypeId());
+                throw new BusinessException("Could not determine price for ticket type " + orderItem.getTicketTypeId());
             }
-            item.setUnitPrice(price);
-            totalAmount = totalAmount.add(price.multiply(BigDecimal.valueOf(item.getQuantity())));
+            orderItem.setUnitPrice(price);
+            totalAmount = totalAmount.add(price.multiply(BigDecimal.valueOf(orderItem.getQuantity())));
         }
 
-        // Decrement ticket quantity
-        for (OrderItem item : order.getItems()) {
-            eventServiceClient.decrementTicketQuantity(item.getTicketTypeId(), item.getQuantity());
+        List<OrderItem> reservedItems = new ArrayList<>();
+        try {
+            for (OrderItem orderItem : order.getItems()) {
+                eventServiceClient.decrementTicketQuantity(orderItem.getTicketTypeId(), orderItem.getQuantity());
+                reservedItems.add(orderItem);
+            }
+
+            order.setTotalAmount(totalAmount);
+            order.setStatus(OrderStatus.PENDING);
+            order.setCreatedAt(LocalDateTime.now());
+            order.getItems().forEach(orderItem -> orderItem.setOrder(order));
+            Order savedOrder = orderRepository.save(order);
+
+            rabbitTemplate.convertAndSend(RabbitMQConfig.ORDERS_EXCHANGE, RabbitMQConfig.ORDER_CREATED_ROUTING_KEY,
+                    new OrderCreatedEvent(savedOrder.getId(), savedOrder.getUserId(), savedOrder.getTotalAmount()));
+
+            return savedOrder;
+        } catch (Exception ex) {
+            // Best-effort compensation: this is not a full saga (no outbox, no guaranteed
+            // retry of the release itself) - see README "Controle de concorrência" section.
+            for (OrderItem reservedItem : reservedItems) {
+                try {
+                    eventServiceClient.releaseTickets(reservedItem.getTicketTypeId(), reservedItem.getQuantity());
+                } catch (Exception releaseEx) {
+                    log.error("Failed to release reserved tickets for ticket type {} after order creation failure",
+                              reservedItem.getTicketTypeId(), releaseEx);
+                }
+            }
+            throw ex;
         }
-
-        order.setTotalAmount(totalAmount);
-        order.setStatus(OrderStatus.PENDING);
-        order.setCreatedAt(LocalDateTime.now());
-        order.getItems().forEach(item -> item.setOrder(order));
-        Order savedOrder = orderRepository.save(order);
-
-        // Publish OrderCreatedEvent to RabbitMQ
-        rabbitTemplate.convertAndSend(RabbitMQConfig.ORDERS_EXCHANGE, RabbitMQConfig.ORDER_CREATED_ROUTING_KEY, new OrderCreatedEvent(savedOrder.getId(), savedOrder.getUserId(), savedOrder.getTotalAmount()));
-
-        return savedOrder;
     }
 
     public Order updateOrder(Long id, Order orderDetails) {
-        Order order = orderRepository.findById(id).orElseThrow(() -> new RuntimeException("Order not found"));
+        Order order = orderRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Order", id));
         order.setUserId(orderDetails.getUserId());
         order.setTotalAmount(orderDetails.getTotalAmount());
         order.setStatus(orderDetails.getStatus());
@@ -122,7 +127,7 @@ public class OrderService {
 
     @Transactional
     public void updateOrderStatus(Long orderId, OrderStatus newStatus) {
-        Order order = orderRepository.findById(orderId).orElseThrow(() -> new RuntimeException("Order not found"));
+        Order order = orderRepository.findById(orderId).orElseThrow(() -> new ResourceNotFoundException("Order", orderId));
         order.setStatus(newStatus);
         orderRepository.save(order);
     }
@@ -137,9 +142,22 @@ public class OrderService {
     /**
      * Fallback method for createOrder when circuit breaker is open or service is down
      */
-    public Order createOrderFallback(Order order, Throwable throwable) {
+    public Order createOrderFallback(String userId, OrderRequest orderRequest, Throwable throwable) {
+        if (throwable instanceof FeignException.Conflict) {
+            throw new InsufficientTicketsException(
+                    "Not enough tickets available for ticket type " + orderRequest.getTicketTypeId());
+        }
+        if (throwable instanceof FeignException.NotFound) {
+            throw new ResourceNotFoundException("TicketType", orderRequest.getTicketTypeId());
+        }
+        if (throwable instanceof BusinessException businessException) {
+            throw businessException;
+        }
+        if (throwable instanceof ResourceNotFoundException resourceNotFoundException) {
+            throw resourceNotFoundException;
+        }
         log.error("Circuit breaker activated for createOrder. Event service is unavailable. Error: {}",
                   throwable.getMessage());
-        throw new RuntimeException("Event service is currently unavailable. Cannot process order at this time. Please try again later.");
+        throw new BusinessException("Event service is currently unavailable. Cannot process order at this time. Please try again later.");
     }
 }
