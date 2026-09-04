@@ -1,5 +1,6 @@
 package com.example.notificationsservice.service;
 
+import com.example.notificationsservice.exception.BusinessException;
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
 import org.slf4j.Logger;
@@ -37,7 +38,7 @@ public class EmailService {
             log.info("Email sent successfully to: {}", to);
         } catch (Exception e) {
             log.error("Failed to send email to: {}", to, e);
-            throw new RuntimeException("Failed to send email", e);
+            throw new BusinessException("Failed to send email", e);
         }
     }
 
@@ -58,7 +59,7 @@ public class EmailService {
             log.info("HTML email sent successfully to: {}", to);
         } catch (MessagingException e) {
             log.error("Failed to send HTML email to: {}", to, e);
-            throw new RuntimeException("Failed to send HTML email", e);
+            throw new BusinessException("Failed to send HTML email", e);
         }
     }
 
